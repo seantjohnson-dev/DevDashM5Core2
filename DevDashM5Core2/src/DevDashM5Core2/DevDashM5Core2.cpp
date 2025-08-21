@@ -7,36 +7,45 @@
 #include "WifiManager.h"
 #include "LVGLRenderer.h"
 #include "ThemeManager.h"
+#include "SensorDashboard.h"
 
 /* -------------------- Setup and Loop -------------------- */
 
 ThemeManager* DevDashM5Core2::theme    = new ThemeManager();
 LVGLRenderer* DevDashM5Core2::renderer = new LVGLRenderer();
 WifiManager*  DevDashM5Core2::manager  = new WifiManager();
+SensorDashboard* DevDashM5Core2::sensorDashboard = new SensorDashboard();
 
 bool DevDashM5Core2::begin() {
     // assume M5.begin() has been called in setup
 
     if (!renderer->begin()) {
-        M5.Lcd.println("LVGLRenderer init failed");
+        Serial.println("LVGLRenderer init failed");
         return false;
     }
 
     if (!theme->begin()) {
-        M5.Lcd.println("ThemeManager init failed");
+        Serial.println("ThemeManager init failed");
         return false;
     }
     theme->apply(theme->current());
 
+    // if (!sensorDashboard->begin()) {
+    //     Serial.println("SensorDashboard init failed");
+    //     return false;
+    // }
+
     if (!manager->begin()) {
-        M5.Lcd.println("WifiManager init failed");
+        Serial.println("WifiManager init failed");
         return false;
     }
     manager->setAutoReconnect(true);
+    manager->loadCredentials();
 
     // Root layout
     lv_obj_t* container = theme->createContainer(lv_screen_active());
-    lv_obj_t* header    = theme->createHeader(container, "WiFi Networks", &refresh_btn_, &wifi_icon_);
+    // lv_obj_add_flag(container, LV_OBJ_FLAG_HIDDEN); // start hidden
+    lv_obj_t* header = theme->createHeader(container, "WiFi Networks", &refresh_btn_, &wifi_icon_);
     (void)header; // silence unused if header isn't referenced further
     wifi_panel_ = theme->createPanel(container);
 
@@ -67,6 +76,9 @@ void DevDashM5Core2::loop() {
         lv_obj_set_style_text_color(wifi_icon_, color, 0);
         last_status = current;
     }
+    manager->loop();
+    theme->loop();
+    // sensorDashboard->loop();
     delay(5);
 }
 
@@ -75,6 +87,7 @@ void DevDashM5Core2::destroy() {
     if (renderer) { delete renderer; renderer = nullptr; }
     if (theme)    { delete theme; theme = nullptr; }
     if (manager)  { delete manager; manager = nullptr; }
+    if (sensorDashboard)  { delete sensorDashboard; sensorDashboard = nullptr; }
 }
 
 void DevDashM5Core2::updateTheme() {
@@ -92,6 +105,7 @@ void DevDashM5Core2::populateWifiList(lv_obj_t* panel) {
     if (!panel) return;
 
     std::vector<WiFiNetwork> networks = manager->scanNetworks(20);
+    std::vector<SavedWiFiNetwork> saved = manager->getSavedNetworks();
 
     if (networks.empty()) {
         lv_obj_t* label = lv_label_create(panel);
@@ -117,7 +131,19 @@ void DevDashM5Core2::populateWifiList(lv_obj_t* panel) {
 
         // RSSI label (child 1)
         lv_obj_t* rssi_label = lv_label_create(row);
-        lv_label_set_text_fmt(rssi_label, "%d dBm", network.rssi);
+        if (!saved.empty()) {
+            for (const auto& saved_net : saved) {
+                if (saved_net.ssid == network.ssid) {
+                    // Highlight saved networks
+                    lv_label_set_text_fmt(rssi_label, "%s %d dBm", LV_SYMBOL_SAVE, network.rssi);
+                    break;
+                } else {
+                    lv_label_set_text_fmt(rssi_label, "%d dBm", network.rssi);
+                }
+            }
+        } else {
+            lv_label_set_text_fmt(rssi_label, "%d dBm", network.rssi);
+        }
         lv_obj_set_style_text_color(rssi_label, lv_palette_main(LV_PALETTE_BLUE), 0);
 
         // Click handler: read SSID text from first child; no heap allocations
@@ -130,9 +156,28 @@ void DevDashM5Core2::populateWifiList(lv_obj_t* panel) {
                 lv_obj_t* lbl = lv_obj_get_child(row, 0);
                 if (!lbl) return;
                 const char* ssid_text = lv_label_get_text(lbl);
-                self->showPasswordModal(ssid_text ? ssid_text : "");
+                std::vector<SavedWiFiNetwork> saved = self->manager->getSavedNetworks();
+                if (!saved.empty()) {
+                    for (const auto& net : saved) {
+                        if (net.ssid == ssid_text) {
+                            // Already saved, no need to show modal
+                            Serial.println("Network already saved: " + String(ssid_text));
+                            bool connected = self->manager->connect(ssid_text, net.password.c_str());
+                            if (connected) {
+                                Serial.println("Connected to: " + String(ssid_text));
+                            } else {
+                                Serial.println("Failed to connect to: " + String(ssid_text));
+                            }
+                            return;
+                        } else {
+                            self->showPasswordModal(ssid_text ? ssid_text : "");
+                        }
+                    }
+                } else {
+                    self->showPasswordModal(ssid_text ? ssid_text : "");
+                }
             },
-            LV_EVENT_ALL, this);
+        LV_EVENT_ALL, this);
     }
 }
 
@@ -246,7 +291,7 @@ void DevDashM5Core2::ensurePasswordUI_() {
         DevDashM5Core2* self = static_cast<DevDashM5Core2*>(lv_event_get_user_data(e));
         if (!self) return;
         const char* pw = self->password_textarea_ ? lv_textarea_get_text(self->password_textarea_) : "";
-        self->manager->connect(self->current_ssid_.c_str(), pw);
+        bool connected = self->manager->connect(self->current_ssid_.c_str(), pw);
         self->hidePasswordModal();
         if (self->password_textarea_) lv_textarea_set_text(self->password_textarea_, "");
     }, LV_EVENT_ALL, this);

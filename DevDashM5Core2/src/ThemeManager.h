@@ -13,6 +13,7 @@ public:
     bool begin(Mode mode = Mode::Light);
     void destroy();
     void apply(Mode m);
+    void loop();
     Mode current() const;
 
     /** Create a standard header bar with title text */

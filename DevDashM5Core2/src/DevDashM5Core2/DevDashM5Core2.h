@@ -3,6 +3,7 @@
 #include "ThemeManager.h"
 #include "LVGLRenderer.h"
 #include "WifiManager.h"
+#include "SensorDashboard.h"
 #include <string>
 
 #include <lvgl.h> // use LVGL types directly to avoid forward-decl/typedef conflicts
@@ -29,6 +30,7 @@ private:
     static ThemeManager* theme;
     static LVGLRenderer* renderer;
     static WifiManager*  manager;
+    static SensorDashboard* sensorDashboard;
 
     // Persistent UI elements (created once, reused)
     lv_obj_t* refresh_btn_      = nullptr;

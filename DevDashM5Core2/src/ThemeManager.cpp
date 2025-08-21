@@ -71,6 +71,10 @@ void ThemeManager::apply(Mode m) {
     lv_style_set_text_color(&listItemStyle, text);
 }
 
+void ThemeManager::loop() {
+    // Placeholder for any periodic updates needed
+}
+
 ThemeManager::Mode ThemeManager::current() const {
     return mode;
 }
@@ -142,7 +146,7 @@ lv_obj_t* ThemeManager::createContainer(lv_obj_t *parent) {
 
 lv_obj_t* ThemeManager::createPanel(lv_obj_t *parent) {
     lv_obj_t *panel = lv_obj_create(parent);
-    lv_obj_set_size(panel, lv_pct(100), lv_pct(100));
+    lv_obj_set_size(panel, lv_pct(100), (lv_pct(100) - 20));
     lv_obj_center(panel);
     // lv_obj_set_style_margin_all(panel, 10, 0);
     lv_obj_set_style_margin_hor(panel, 10, 0);

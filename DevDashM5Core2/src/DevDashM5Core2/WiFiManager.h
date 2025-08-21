@@ -26,6 +26,11 @@ struct WiFiNetwork {
     int32_t rssi;
 };
 
+struct SavedWiFiNetwork {
+    String ssid;
+    String password;
+};
+
 class WifiManager {
 public:
     WifiManager();
@@ -56,7 +61,7 @@ public:
     bool saveCredentials(const char* ssid, const char* password);
 
     /** Load credentials from SPIFFS */
-    bool loadCredentials(String& ssidOut, String& passOut);
+    bool loadCredentials();
 
     /** Get last error code */
     WiFiError lastError() const;
@@ -70,7 +75,16 @@ public:
     /** Clean up resources */
     void destroy();
 
+    const std::vector<WiFiNetwork>& getScannedNetworks() const { return _scannedNetworks; }
+
+    const std::vector<SavedWiFiNetwork>& getSavedNetworks() const { return _savedNetworks; }
+
 private:
     WiFiError _lastError;
     bool      _autoReconnect;
+    std::vector<SavedWiFiNetwork> _savedNetworks;
+    std::vector<WiFiNetwork> _scannedNetworks;
+    bool _credsLoaded = false;
+    bool writeSavedNetworksToFile_();
+    static constexpr const char* kJsonPath = "/wifi.json";
 };
